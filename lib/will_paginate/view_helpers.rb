@@ -39,10 +39,11 @@ module WillPaginate
     pagination_options.deprecate_key(:renderer) { |key, _| "pagination_options[#{key.inspect}] shouldn't be set globally" }
 
     include WillPaginate::I18n
+    extend ActionView::Helpers::NumberHelper
 
     # Returns HTML representing page links for a WillPaginate::Collection-like object.
     # In case there is no more than one page in total, nil is returned.
-    # 
+    #
     # ==== Options
     # * <tt>:class</tt> -- CSS class name for the generated DIV (default: "pagination")
     # * <tt>:previous_label</tt> -- default: "« Previous"
@@ -61,7 +62,7 @@ module WillPaginate
     #
     # All options not recognized by will_paginate will become HTML attributes on the container
     # element for pagination links (the DIV). For example:
-    # 
+    #
     #   <%= will_paginate @posts, :style => 'color:blue' %>
     #
     # will result in:
@@ -109,7 +110,7 @@ module WillPaginate
       model_key = if model.respond_to? :model_name
                     model.model_name.i18n_key  # ActiveModel::Naming
                   else
-                    model.to_s.underscore
+                    model.to_s #.underscore
                   end
 
       if options.fetch(:html, true)
@@ -120,6 +121,8 @@ module WillPaginate
         b = eb = html_key = ''
         sp = ' '
       end
+
+      delimiter = options.fetch(:delimiter, ',')
 
       model_count = collection.total_pages > 1 ? 5 : collection.size
       defaults = ["models.#{model_key}"]
@@ -137,8 +140,12 @@ module WillPaginate
       if collection.total_pages < 2
         i18n_key = :"page_entries_info.single_page#{html_key}"
         keys = [:"#{model_key}.#{i18n_key}", i18n_key]
+        params = {
+          :model => model_name,
+          :count => number_with_delimiter(collection.total_entries, delimiter: delimiter),
+        }
 
-        will_paginate_translate keys, :count => collection.total_entries, :model => model_name do |_, opts|
+        will_paginate_translate keys, params do |_, opts|
           case opts[:count]
           when 0; "No #{opts[:model]} found"
           when 1; "Displaying #{b}1#{eb} #{opts[:model]}"
@@ -149,12 +156,18 @@ module WillPaginate
         i18n_key = :"page_entries_info.multi_page#{html_key}"
         keys = [:"#{model_key}.#{i18n_key}", i18n_key]
         params = {
-          :model => model_name, :count => collection.total_entries,
+          :model => model_name,
+          :count => number_with_delimiter(collection.total_entries, delimiter: delimiter),
           :from => collection.offset + 1, :to => collection.offset + collection.length
         }
         will_paginate_translate keys, params do |_, opts|
-          %{Displaying %s #{b}%d#{sp}-#{sp}%d#{eb} of #{b}%d#{eb} in total} %
-            [ opts[:model], opts[:from], opts[:to], opts[:count] ]
+          %{Displaying %s #{b}%s#{sp}-#{sp}%s#{eb} of #{b}%s#{eb} in total} %
+            [
+              opts[:model],
+              number_with_delimiter(opts[:from],  delimiter: delimiter),
+              number_with_delimiter(opts[:to],    delimiter: delimiter),
+              number_with_delimiter(opts[:count], delimiter: delimiter),
+            ]
         end
       end
     end
